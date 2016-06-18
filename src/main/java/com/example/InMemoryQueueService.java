@@ -11,12 +11,21 @@ import java.util.UUID;
 
 public class InMemoryQueueService implements QueueService {
 
-	private final static int VISIBILITY_TIMEOUT_MILLIS = 100;
+	private static final long DEFAULT_VISIBILITY_TIMEOUT = 30_000;
+
+	private final long visibilityTimeoutMillis;
 
 	private Queue<String> q = new LinkedList<>();
-	private Map<String, String> invisibleMessages = new HashMap<String, String>();
-	private Map<String, TimerTask> invisibleMessageRemovalTasks = new HashMap<String, TimerTask>();
+	private Map<String, TimerTask> invisibleMessageReactivatingTasks = new HashMap<String, TimerTask>();
 	private Timer timer = new Timer();
+
+	public InMemoryQueueService() {
+		this(DEFAULT_VISIBILITY_TIMEOUT);
+	}
+
+	public InMemoryQueueService(long visibilityTimeoutMillis) {
+		this.visibilityTimeoutMillis = visibilityTimeoutMillis;
+	}
 
 	@Override
 	public void push(String messageBody) {
@@ -26,30 +35,41 @@ public class InMemoryQueueService implements QueueService {
 	@Override
 	public Message pull() {
 		String messageBody = q.poll();
+		if (messageBody == null){
+			return null;
+		}
+
 		String receiptHandle = UUID.randomUUID().toString();
-		invisibleMessages.put(receiptHandle, messageBody);
 
-		timer.schedule(new TimerTask() {
+		ReactivateMessageTask task = new ReactivateMessageTask(messageBody, receiptHandle);
 
-			@Override
-			public void run() {
-				Deque<String> d = (Deque<String>) q;
-				d.addFirst(messageBody);
-
-				invisibleMessages.remove(receiptHandle);
-				invisibleMessageRemovalTasks.remove(receiptHandle);
-			}
-
-		}, VISIBILITY_TIMEOUT_MILLIS);
+		timer.schedule(task, visibilityTimeoutMillis);
+		invisibleMessageReactivatingTasks.put(receiptHandle, task);
 
 		return new Message(messageBody, receiptHandle);
 	}
 
 	@Override
 	public void delete(String receiptHandle) {
-		invisibleMessageRemovalTasks.get(receiptHandle).cancel();
+		invisibleMessageReactivatingTasks.get(receiptHandle).cancel();
+		invisibleMessageReactivatingTasks.remove(receiptHandle);
+	}
 
-		invisibleMessages.remove(receiptHandle);
-		invisibleMessageRemovalTasks.remove(receiptHandle);
+	private class ReactivateMessageTask extends TimerTask {
+
+		final String messageBody;
+		final String receiptHandle;
+
+		public ReactivateMessageTask(String messageBody, String receiptHandle) {
+			this.messageBody = messageBody;
+			this.receiptHandle = receiptHandle;
+		}
+
+		@Override
+		public void run() {
+			Deque<String> d = (Deque<String>) q;
+			d.addFirst(messageBody);
+			invisibleMessageReactivatingTasks.remove(receiptHandle);
+		}
 	}
 }
