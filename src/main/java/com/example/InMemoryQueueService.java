@@ -14,7 +14,7 @@ public class InMemoryQueueService implements QueueService {
 	private final static int VISIBILITY_TIMEOUT_MILLIS = 100;
 
 	private Queue<String> q = new LinkedList<>();
-	private Map<String, Message> invisibleMessages = new HashMap<String, Message>();
+	private Map<String, String> invisibleMessages = new HashMap<String, String>();
 	private Map<String, TimerTask> invisibleMessageRemovalTasks = new HashMap<String, TimerTask>();
 	private Timer timer = new Timer();
 
@@ -27,8 +27,7 @@ public class InMemoryQueueService implements QueueService {
 	public Message pull() {
 		String messageBody = q.poll();
 		String receiptHandle = UUID.randomUUID().toString();
-		Message message = new Message(messageBody, receiptHandle);
-		invisibleMessages.put(receiptHandle, message);
+		invisibleMessages.put(receiptHandle, messageBody);
 
 		timer.schedule(new TimerTask() {
 
@@ -43,7 +42,7 @@ public class InMemoryQueueService implements QueueService {
 
 		}, VISIBILITY_TIMEOUT_MILLIS);
 
-		return message;
+		return new Message(messageBody, receiptHandle);
 	}
 
 	@Override
