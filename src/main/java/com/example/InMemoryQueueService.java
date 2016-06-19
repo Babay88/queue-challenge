@@ -24,6 +24,9 @@ public class InMemoryQueueService implements QueueService {
 	}
 
 	public InMemoryQueueService(long visibilityTimeoutMillis) {
+		if (visibilityTimeoutMillis <= 0 || visibilityTimeoutMillis > 43_200_000) {
+			throw new IllegalArgumentException("Illegal visibilityTimeoutMillis: " + visibilityTimeoutMillis);
+		}
 		this.visibilityTimeoutMillis = visibilityTimeoutMillis;
 	}
 
@@ -59,8 +62,8 @@ public class InMemoryQueueService implements QueueService {
 
 	private class ReactivateMessageTask extends TimerTask {
 
-		final String messageBody;
-		final String receiptHandle;
+		private final String messageBody;// TODO these are exactly fields of Message object
+		private final String receiptHandle;
 
 		public ReactivateMessageTask(String messageBody, String receiptHandle) {
 			this.messageBody = messageBody;
