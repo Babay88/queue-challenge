@@ -96,7 +96,7 @@ public class InMemoryQueueTest {
 	public void testPushLoop() {
 		QueueService qs = new InMemoryQueueService();
 
-		for (int i = 0; i < 100_000; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			qs.push(new Object().toString());
 		}
 	}
@@ -105,7 +105,7 @@ public class InMemoryQueueTest {
 	public void testPullLoop() {
 		QueueService qs = new InMemoryQueueService();
 
-		for (int i = 0; i < 100_000; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			qs.pull();
 		}
 	}
@@ -114,7 +114,7 @@ public class InMemoryQueueTest {
 	public void testDeleteLoop() {
 		QueueService qs = new InMemoryQueueService();
 
-		for (int i = 0; i < 100_000; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			qs.delete("" + i);
 		}
 	}
@@ -123,7 +123,7 @@ public class InMemoryQueueTest {
 	public void testPushAndPullLoop() {
 		QueueService qs = new InMemoryQueueService(3_000);
 
-		for (int i = 0; i < 100_000; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			qs.push(new Object().toString());
 			qs.pull();
 		}
@@ -133,7 +133,7 @@ public class InMemoryQueueTest {
 	public void testPushAndPullAndDeleteLoop() {
 		QueueService qs = new InMemoryQueueService(3_000);
 
-		for (int i = 0; i < 100_000; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			qs.push(new Object().toString());
 			Message msg = qs.pull();
 			if (msg != null) {
@@ -181,5 +181,47 @@ public class InMemoryQueueTest {
 	@Test(expected = IllegalArgumentException.class)
 	public void testWrongConstructorCall1() {
 		QueueService qs = new InMemoryQueueService(0);
+	}
+
+	@Test
+	public void testMultipleProducersConsumers() {
+
+		QueueService qs = new InMemoryQueueService(100);
+
+		new Thread(() -> {
+			for (int i = 0; i < 10; i += 2) {
+				qs.push("" + i);
+			}
+		}).start();
+
+		new Thread(() -> {
+			for (int i = 1; i < 10; i += 2) {
+				qs.push("" + i);
+			}
+		}).start();
+
+		new Thread(() -> {
+			for (int i = 0; i < 50; ++i) {
+				Message pull = qs.pull();
+				if (pull != null) {
+					String body = pull.getBody();
+					int number = Integer.parseInt(body);
+					Assert.assertTrue(number >= 0 && number < 10);
+					qs.delete(pull.getReceiptHandle());
+				}
+			}
+		}).start();
+
+		new Thread(() -> {
+			for (int i = 0; i < 50; ++i) {
+				Message pull = qs.pull();
+				if (pull != null) {
+					String body = pull.getBody();
+					int number = Integer.parseInt(body);
+					Assert.assertTrue(number >= 0 && number < 10);
+					qs.delete(pull.getReceiptHandle());
+				}
+			}
+		}).start();
 	}
 }
