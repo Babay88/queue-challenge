@@ -111,7 +111,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testPullFromEmptyQueue() throws InterruptedException {
+	public void testPullFromEmptyQueue() {
 		QueueService qs = new InMemoryQueueService();
 
 		Message message = qs.pull();
@@ -120,7 +120,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testPushLoop() throws InterruptedException {
+	public void testPushLoop() {
 		QueueService qs = new InMemoryQueueService();
 
 		for (int i = 0; i < 100_000; ++i) {
@@ -129,7 +129,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testPullLoop() throws InterruptedException {
+	public void testPullLoop() {
 		QueueService qs = new InMemoryQueueService();
 
 		for (int i = 0; i < 100_000; ++i) {
@@ -138,7 +138,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testDeleteLoop() throws InterruptedException {
+	public void testDeleteLoop() {
 		QueueService qs = new InMemoryQueueService();
 
 		for (int i = 0; i < 100_000; ++i) {
@@ -147,7 +147,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testPushAndPullLoop() throws InterruptedException {
+	public void testPushAndPullLoop() {
 		QueueService qs = new InMemoryQueueService(3_000);
 
 		for (int i = 0; i < 100_000; ++i) {
@@ -157,7 +157,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testPushAndPullAndDeleteLoop() throws InterruptedException {
+	public void testPushAndPullAndDeleteLoop() {
 		QueueService qs = new InMemoryQueueService(3_000);
 
 		for (int i = 0; i < 100_000; ++i) {
@@ -170,7 +170,7 @@ public class InMemoryQueueTest {
 	}
 
 	@Test
-	public void testWrongReceiptHandle() throws InterruptedException {
+	public void testWrongReceiptHandle() {
 		QueueService qs = new InMemoryQueueService(3_000);
 
 		qs.push(new Object().toString());
@@ -178,13 +178,35 @@ public class InMemoryQueueTest {
 		qs.delete("INVALID_RECEIPT_HANDLE" + (msg != null ? msg.getBody() : "!@#_garbage_#$%"));
 	}
 
+	@Test
+	public void testPushNull() {
+		QueueService qs = new InMemoryQueueService(3_000);
+
+		qs.push(null);
+	}
+
+	@Test
+	public void testPushAndDeleteRandomObjects() {
+		QueueService qs = new InMemoryQueueService(3_000);
+
+		qs.push(new Object().toString());
+		qs.delete(new Object().toString());
+	}
+
+	@Test
+	public void testDeleteNull() {
+		QueueService qs = new InMemoryQueueService(3_000);
+
+		qs.delete(null);
+	}
+
 	@Test(expected = IllegalArgumentException.class)
-	public void testWrongConstructorCall0() throws InterruptedException {
+	public void testWrongConstructorCall0() {
 		QueueService qs = new InMemoryQueueService(-100);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
-	public void testWrongConstructorCall1() throws InterruptedException {
+	public void testWrongConstructorCall1() {
 		QueueService qs = new InMemoryQueueService(0);
 	}
 }
