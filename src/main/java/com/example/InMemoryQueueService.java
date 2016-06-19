@@ -16,7 +16,7 @@ public class InMemoryQueueService implements QueueService {
 	private final long visibilityTimeoutMillis;
 
 	private Queue<String> q = new LinkedList<>();
-	private Map<String, TimerTask> invisibleMessageReactivationTasks = new HashMap<String, TimerTask>();
+	private Map<String, TimerTask> invisibleMessageReactivationTasks = new HashMap<>();
 	private Timer timer = new Timer();
 
 	public InMemoryQueueService() {
