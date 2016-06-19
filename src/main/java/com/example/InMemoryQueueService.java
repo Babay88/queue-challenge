@@ -1,10 +1,6 @@
 package com.example;
 
-import java.util.Deque;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -44,7 +40,7 @@ public class InMemoryQueueService implements QueueService {
             return null;
         }
 
-        if (queueMessage.getReceiptHandle() != null){
+        if (queueMessage.getReceiptHandle() != null) {
             reactivatedMessagesMap.remove(queueMessage.getReceiptHandle());
         }
 
@@ -63,19 +59,21 @@ public class InMemoryQueueService implements QueueService {
         if (receiptHandle == null)
             return false;
 
+        boolean removed = false;
         TimerTask task = invisibleMessageReactivationTasks.get(receiptHandle);
         if (task != null) {
             task.cancel();
             invisibleMessageReactivationTasks.remove(receiptHandle);
-            return true;
-        } else {
-            Message msg = reactivatedMessagesMap.remove(receiptHandle);
-            if (msg != null){
-                q.remove(msg);
-                return true;
-            }
+            removed = true;
         }
-        return false;
+
+        Message msg = reactivatedMessagesMap.remove(receiptHandle);
+        if (msg != null) {
+            q.remove(msg);
+            removed = true;
+        }
+
+        return removed;
     }
 
     public int getVisibleMessagesCount() {
@@ -84,6 +82,10 @@ public class InMemoryQueueService implements QueueService {
 
     public int getInvisibleMessagesCount() {
         return invisibleMessageReactivationTasks.size();
+    }
+
+    public boolean hasAnyMessages() {
+        return q.size() > 0 || invisibleMessageReactivationTasks.size() > 0;
     }
 
     private class ReactivateMessageTask extends TimerTask {
@@ -96,9 +98,9 @@ public class InMemoryQueueService implements QueueService {
 
         @Override
         public void run() {
-            invisibleMessageReactivationTasks.remove(msg.getReceiptHandle());
             reactivatedMessagesMap.put(msg.getReceiptHandle(), msg);
             q.addFirst(msg);
+            invisibleMessageReactivationTasks.remove(msg.getReceiptHandle());
         }
     }
 }

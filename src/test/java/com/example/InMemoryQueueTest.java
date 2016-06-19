@@ -57,7 +57,7 @@ public class InMemoryQueueTest {
 
     @Test
     public void testLateDelete() throws InterruptedException {
-        InMemoryQueueService qs = new InMemoryQueueService(50);
+        InMemoryQueueService qs = new InMemoryQueueService(5);
 
         qs.push("TEST_MSG_1");
 
@@ -66,8 +66,10 @@ public class InMemoryQueueTest {
 
         String receiptHandleFirst = message.getReceiptHandle();
         assertEquals(1, qs.getInvisibleMessagesCount());
-        Thread.sleep(100);
-        assertEquals(0, qs.getInvisibleMessagesCount());
+        while (qs.getInvisibleMessagesCount() > 0) {
+            Thread.sleep(10);
+        }
+
         boolean result = qs.delete(receiptHandleFirst);
 
         assertTrue(result);
@@ -144,8 +146,6 @@ public class InMemoryQueueTest {
         assertEquals(0, qs.getVisibleMessagesCount());
         assertEquals(0, qs.getInvisibleMessagesCount());
 
-        Thread.sleep(20);
-
         assertNull(qs.pull());
     }
 
@@ -161,7 +161,7 @@ public class InMemoryQueueTest {
 
     @Test
     public void testPushAndPullAndDeleteLoop() throws InterruptedException {
-        InMemoryQueueService qs = new InMemoryQueueService(10);
+        InMemoryQueueService qs = new InMemoryQueueService(5);
 
         for (int i = 0; i < 1000; ++i) {
             qs.push(new Object().toString());
@@ -172,8 +172,6 @@ public class InMemoryQueueTest {
 
         assertEquals(0, qs.getVisibleMessagesCount());
         assertEquals(0, qs.getInvisibleMessagesCount());
-
-        Thread.sleep(30);
 
         assertNull(qs.pull());
     }
@@ -214,51 +212,46 @@ public class InMemoryQueueTest {
 
     @Test
     public void testMultipleProducersConsumers() throws InterruptedException {
+        final int amount = 100;
         InMemoryQueueService qs = new InMemoryQueueService(100);
 
-        final int received[] = new int[10];
+        final int received[] = new int[amount];
 
         final Thread senderThread1 = new Thread(() -> {
-            for (int i = 0; i < 10; i += 2) {
+            for (int i = 0; i < amount; i += 2) {
                 qs.push("" + i);
             }
         });
 
         final Thread senderThread2 = new Thread(() -> {
-            for (int i = 1; i < 10; i += 2) {
+            for (int i = 1; i < amount; i += 2) {
                 qs.push("" + i);
             }
         });
 
         Thread consumerThread1 = new Thread(() -> {
-            int i = 0;
-            while (i < 50 || senderThread1.isAlive() || senderThread2.isAlive()) {
+            while (senderThread1.isAlive() || senderThread2.isAlive() || qs.hasAnyMessages()) {
                 Message pull = qs.pull();
                 if (pull != null) {
                     String body = pull.getBody();
                     int number = Integer.parseInt(body);
-                    assertTrue(number >= 0 && number < 10);
+                    assertTrue(number >= 0 && number < amount);
                     assertTrue(qs.delete(pull.getReceiptHandle()));
                     received[number] = 1;
                 }
-                ++i;
             }
         });
 
-
-
         Thread consumerThread2 = new Thread(() -> {
-            int i = 0;
-            while (i < 50 || senderThread1.isAlive() || senderThread2.isAlive()) {
+            while (senderThread1.isAlive() || senderThread2.isAlive() || qs.hasAnyMessages()) {
                 Message pull = qs.pull();
                 if (pull != null) {
                     String body = pull.getBody();
                     int number = Integer.parseInt(body);
-                    assertTrue(number >= 0 && number < 10);
+                    assertTrue(number >= 0 && number < amount);
                     assertTrue(qs.delete(pull.getReceiptHandle()));
                     received[number] = 2;
                 }
-                ++i;
             }
         });
 
@@ -267,16 +260,22 @@ public class InMemoryQueueTest {
         consumerThread1.start();
         consumerThread2.start();
 
+        senderThread1.join();
+        senderThread2.join();
         consumerThread1.join();
         consumerThread2.join();
 
-        for (int i=0; i < 10; i++){
-            assertTrue(received[i] > 0);
+        for (int i = 0; i < amount; i++) {
+            if (received[i] == 0) {
+                fail(Arrays.toString(received));
+            }
         }
+
+        //System.out.println(Arrays.toString(received));
 
         assertEquals(0, qs.getInvisibleMessagesCount());
         assertEquals(0, qs.getVisibleMessagesCount());
-
-        //fail(Arrays.toString(received));
     }
+
+
 }
