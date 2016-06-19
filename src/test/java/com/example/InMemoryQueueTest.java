@@ -23,7 +23,7 @@ public class InMemoryQueueTest {
 
 	@Test
 	public void testOneThreadWithDelay() throws InterruptedException {
-		QueueService qs = new InMemoryQueueService();//TODO 100
+		QueueService qs = new InMemoryQueueService(100);
 
 		qs.push("TEST_MSG_1");
 		qs.push("TEST_MSG_2");
@@ -46,7 +46,7 @@ public class InMemoryQueueTest {
 
 	@Test
 	public void testDelete() throws InterruptedException {
-		QueueService qs = new InMemoryQueueService();//TODO 100
+		QueueService qs = new InMemoryQueueService(100);
 
 		qs.push("TEST_MSG_1");
 		qs.push("TEST_MSG_2");

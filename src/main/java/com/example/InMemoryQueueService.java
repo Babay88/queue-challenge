@@ -16,7 +16,7 @@ public class InMemoryQueueService implements QueueService {
 	private final long visibilityTimeoutMillis;
 
 	private Queue<String> q = new LinkedList<>();
-	private Map<String, TimerTask> invisibleMessageReactivatingTasks = new HashMap<String, TimerTask>();
+	private Map<String, TimerTask> invisibleMessageReactivationTasks = new HashMap<String, TimerTask>();
 	private Timer timer = new Timer();
 
 	public InMemoryQueueService() {
@@ -35,7 +35,7 @@ public class InMemoryQueueService implements QueueService {
 	@Override
 	public Message pull() {
 		String messageBody = q.poll();
-		if (messageBody == null){
+		if (messageBody == null) {
 			return null;
 		}
 
@@ -44,15 +44,17 @@ public class InMemoryQueueService implements QueueService {
 		ReactivateMessageTask task = new ReactivateMessageTask(messageBody, receiptHandle);
 
 		timer.schedule(task, visibilityTimeoutMillis);
-		invisibleMessageReactivatingTasks.put(receiptHandle, task);
+		invisibleMessageReactivationTasks.put(receiptHandle, task);
 
 		return new Message(messageBody, receiptHandle);
 	}
 
 	@Override
 	public void delete(String receiptHandle) {
-		invisibleMessageReactivatingTasks.get(receiptHandle).cancel();
-		invisibleMessageReactivatingTasks.remove(receiptHandle);
+		if (invisibleMessageReactivationTasks.containsKey(receiptHandle)) {
+			invisibleMessageReactivationTasks.get(receiptHandle).cancel();
+			invisibleMessageReactivationTasks.remove(receiptHandle);
+		}
 	}
 
 	private class ReactivateMessageTask extends TimerTask {
@@ -69,7 +71,7 @@ public class InMemoryQueueService implements QueueService {
 		public void run() {
 			Deque<String> d = (Deque<String>) q;
 			d.addFirst(messageBody);
-			invisibleMessageReactivatingTasks.remove(receiptHandle);
+			invisibleMessageReactivationTasks.remove(receiptHandle);
 		}
 	}
 }
