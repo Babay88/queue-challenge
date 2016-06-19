@@ -89,10 +89,7 @@ public class InMemoryQueueTest {
 	@Test
 	public void testPullFromEmptyQueue() {
 		QueueService qs = new InMemoryQueueService();
-
-		Message message = qs.pull();
-
-		System.out.println(message);
+		qs.pull();
 	}
 
 	@Test
