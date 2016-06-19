@@ -27,30 +27,6 @@ public class InMemoryQueueTest {
 		}
 	}
 
-	// @Test
-	public void testOneThreadWithDelay() throws InterruptedException {// TODO
-		QueueService qs = new InMemoryQueueService(100);
-
-		qs.push("TEST_MSG_1");
-		qs.push("TEST_MSG_2");
-
-		Message message = qs.pull();
-		Assert.assertTrue(
-				message == null || message.getBody().equals("TEST_MSG_1") || message.getBody().equals("TEST_MSG_2"));
-		String receiptHandleFirst = message.getReceiptHandle();
-
-		Thread.sleep(110);
-
-		message = qs.pull();
-		String receiptHandleSecond = message.getReceiptHandle();
-		Assert.assertTrue(message.getBody().equals("TEST_MSG_1"));
-
-		Assert.assertFalse(receiptHandleFirst.equals(receiptHandleSecond));
-
-		message = qs.pull();
-		Assert.assertTrue(message.getBody().equals("TEST_MSG_2"));
-	}
-
 	@Test
 	public void testDelete() throws InterruptedException {
 		QueueService qs = new InMemoryQueueService(100);

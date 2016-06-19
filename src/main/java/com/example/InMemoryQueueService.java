@@ -44,12 +44,14 @@ public class InMemoryQueueService implements QueueService {
 
 		String receiptHandle = UUID.randomUUID().toString();
 
-		ReactivateMessageTask task = new ReactivateMessageTask(messageBody, receiptHandle);
+		Message message = new Message(messageBody, receiptHandle);
+
+		ReactivateMessageTask task = new ReactivateMessageTask(message);
 
 		timer.schedule(task, visibilityTimeoutMillis);
 		invisibleMessageReactivationTasks.put(receiptHandle, task);
 
-		return new Message(messageBody, receiptHandle);
+		return message;
 	}
 
 	@Override
@@ -62,19 +64,17 @@ public class InMemoryQueueService implements QueueService {
 
 	private class ReactivateMessageTask extends TimerTask {
 
-		private final String messageBody;// TODO these are exactly fields of Message object
-		private final String receiptHandle;
+		private final Message msg;
 
-		public ReactivateMessageTask(String messageBody, String receiptHandle) {
-			this.messageBody = messageBody;
-			this.receiptHandle = receiptHandle;
+		public ReactivateMessageTask(Message msg) {
+			this.msg = msg;
 		}
 
 		@Override
 		public void run() {
 			Deque<String> d = (Deque<String>) q;
-			d.addFirst(messageBody);
-			invisibleMessageReactivationTasks.remove(receiptHandle);
+			d.addFirst(msg.getBody());
+			invisibleMessageReactivationTasks.remove(msg.getReceiptHandle());
 		}
 	}
 }
