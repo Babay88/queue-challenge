@@ -1,227 +1,282 @@
 package com.example;
 
-import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.Arrays;
+
+import static org.junit.Assert.*;
 
 public class InMemoryQueueTest {
 
-	@Test
-	public void testOneThread() {
-		QueueService qs = new InMemoryQueueService();
+    @Test
+    public void testOneThread() {
+        InMemoryQueueService qs = new InMemoryQueueService();
 
-		qs.push("TEST_MSG_1");
-		qs.push("TEST_MSG_2");
+        qs.push("TEST_MSG_1");
+        qs.push("TEST_MSG_2");
 
-		Message message = qs.pull();
-		Assert.assertTrue(
-				message == null || message.getBody().equals("TEST_MSG_1") || message.getBody().equals("TEST_MSG_2"));
-		if (message != null) {
-			qs.delete(message.getReceiptHandle());
-		}
+        Message message1 = qs.pull();
 
-		message = qs.pull();
-		Assert.assertTrue(
-				message == null || message.getBody().equals("TEST_MSG_1") || message.getBody().equals("TEST_MSG_2"));
-		if (message != null) {
-			qs.delete(message.getReceiptHandle());
-		}
-	}
+        assertTrue(message1.getBody().equals("TEST_MSG_1") || message1.getBody().equals("TEST_MSG_2"));
+        assertEquals(1, qs.getVisibleMessagesCount());
 
-	@Test
-	public void testDelete() throws InterruptedException {
-		QueueService qs = new InMemoryQueueService(100);
+        qs.delete(message1.getReceiptHandle());
 
-		qs.push("TEST_MSG_1");
-		qs.push("TEST_MSG_2");
+        Message message2 = qs.pull();
+        assertTrue(message2.getBody().equals("TEST_MSG_1") || message2.getBody().equals("TEST_MSG_2"));
+        assertFalse(message1.getBody().equals(message2.getBody()));
+        assertEquals(0, qs.getVisibleMessagesCount());
 
-		Message message = qs.pull();
+        qs.delete(message2.getReceiptHandle());
+    }
 
-		Assert.assertTrue(
-				message == null || message.getBody().equals("TEST_MSG_1") || message.getBody().equals("TEST_MSG_2"));
+    @Test
+    public void testDelete() throws InterruptedException {
+        InMemoryQueueService qs = new InMemoryQueueService(100);
 
-		if (message != null) {
-			String receiptHandleFirst = message.getReceiptHandle();
-			qs.delete(receiptHandleFirst);
-		}
+        qs.push("TEST_MSG_1");
+        qs.push("TEST_MSG_2");
 
-		message = qs.pull();
+        Message message1 = qs.pull();
+        Message message2 = qs.pull();
 
-		Assert.assertTrue(
-				message == null || message.getBody().equals("TEST_MSG_1") || message.getBody().equals("TEST_MSG_2"));
+        assertTrue(message1.getBody().equals("TEST_MSG_1") || message1.getBody().equals("TEST_MSG_2"));
+        assertTrue(message2.getBody().equals("TEST_MSG_1") || message2.getBody().equals("TEST_MSG_2"));
+        assertFalse(message1.getBody().equals(message2.getBody()));
+        assertEquals(2, qs.getInvisibleMessagesCount());
 
-		if (message != null) {
-			String receiptHandleSecond = message.getReceiptHandle();
-			Thread.sleep(200);
-			qs.delete(receiptHandleSecond);
-		}
-	}
+        qs.delete(message1.getReceiptHandle());
 
-	@Test
-	public void testLateDelete() throws InterruptedException {
-		QueueService qs = new InMemoryQueueService(100);
+        assertEquals(1, qs.getInvisibleMessagesCount());
 
-		qs.push("TEST_MSG_1");
+        qs.delete(message2.getReceiptHandle());
 
-		Message message = qs.pull();
-		Assert.assertTrue(message == null || message.getBody().equals("TEST_MSG_1"));
-		if (message != null) {
-			String receiptHandleFirst = message.getReceiptHandle();
-			Thread.sleep(200);
-			qs.delete(receiptHandleFirst);
-		}
-	}
+        assertEquals(0, qs.getInvisibleMessagesCount());
+        assertEquals(0, qs.getVisibleMessagesCount());
+    }
 
-	@Test
-	public void testEarlyDelete() throws InterruptedException {
-		QueueService qs = new InMemoryQueueService(1_000);
+    @Test
+    public void testLateDelete() throws InterruptedException {
+        InMemoryQueueService qs = new InMemoryQueueService(50);
 
-		qs.push("TEST_MSG_1");
+        qs.push("TEST_MSG_1");
 
-		Message message = qs.pull();
-		Assert.assertTrue(message == null || message.getBody().equals("TEST_MSG_1"));
-		if (message != null) {
-			String receiptHandleFirst = message.getReceiptHandle();
-			Thread.sleep(200);
-			qs.delete(receiptHandleFirst);
-		}
-	}
+        Message message = qs.pull();
+        assertTrue(message.getBody().equals("TEST_MSG_1"));
 
-	@Test
-	public void testPullFromEmptyQueue() {
-		QueueService qs = new InMemoryQueueService();
-		qs.pull();
-	}
+        String receiptHandleFirst = message.getReceiptHandle();
+        assertEquals(1, qs.getInvisibleMessagesCount());
+        Thread.sleep(100);
+        assertEquals(0, qs.getInvisibleMessagesCount());
+        boolean result = qs.delete(receiptHandleFirst);
 
-	@Test
-	public void testPushLoop() {
-		QueueService qs = new InMemoryQueueService();
+        assertTrue(result);
+        assertNull(qs.pull());
+    }
 
-		for (int i = 0; i < 1000; ++i) {
-			qs.push(new Object().toString());
-		}
-	}
+    @Test
+    public void testEarlyDelete() throws InterruptedException {
+        InMemoryQueueService qs = new InMemoryQueueService(1_000);
 
-	@Test
-	public void testPullLoop() {
-		QueueService qs = new InMemoryQueueService();
+        qs.push("TEST_MSG_1");
 
-		for (int i = 0; i < 1000; ++i) {
-			qs.pull();
-		}
-	}
+        Message message = qs.pull();
+        assertTrue(message.getBody().equals("TEST_MSG_1"));
+        String receiptHandleFirst = message.getReceiptHandle();
+        Thread.sleep(50);
+        assertEquals(1, qs.getInvisibleMessagesCount());
+        qs.delete(receiptHandleFirst);
+        assertEquals(0, qs.getInvisibleMessagesCount());
+        assertEquals(0, qs.getVisibleMessagesCount());
+    }
 
-	@Test
-	public void testDeleteLoop() {
-		QueueService qs = new InMemoryQueueService();
+    @Test
+    public void testPullFromEmptyQueue() {
+        QueueService qs = new InMemoryQueueService();
+        Message message = qs.pull();
+        assertNull(message);
+    }
 
-		for (int i = 0; i < 1000; ++i) {
-			qs.delete("" + i);
-		}
-	}
+    @Test
+    public void testPushLoop() {
+        InMemoryQueueService qs = new InMemoryQueueService();
 
-	@Test
-	public void testPushAndPullLoop() {
-		QueueService qs = new InMemoryQueueService(3_000);
+        for (int i = 0; i < 1000; ++i) {
+            qs.push(new Object().toString());
+        }
+        assertEquals(1000, qs.getVisibleMessagesCount());
+        assertEquals(0, qs.getInvisibleMessagesCount());
+    }
 
-		for (int i = 0; i < 1000; ++i) {
-			qs.push(new Object().toString());
-			qs.pull();
-		}
-	}
+    @Test
+    public void testPullLoop() {
+        QueueService qs = new InMemoryQueueService();
+        boolean[] receivedMessages = new boolean[10_000];
 
-	@Test
-	public void testPushAndPullAndDeleteLoop() {
-		QueueService qs = new InMemoryQueueService(3_000);
+        for (int i = 0; i < 1000; ++i) {
+            qs.push(Integer.toString(i));
+        }
 
-		for (int i = 0; i < 1000; ++i) {
-			qs.push(new Object().toString());
-			Message msg = qs.pull();
-			if (msg != null) {
-				qs.delete(msg.getReceiptHandle());
-			}
-		}
-	}
+        for (int i = 0; i < 1000; ++i) {
+            Message message = qs.pull();
+            int num = Integer.parseInt(message.getBody());
+            receivedMessages[num] = true;
+        }
 
-	@Test
-	public void testWrongReceiptHandle() {
-		QueueService qs = new InMemoryQueueService(3_000);
+        for (int i = 0; i < 1000; ++i) {
+            assertTrue(receivedMessages[i]);
+        }
+        assertNull(qs.pull());
+    }
 
-		qs.push(new Object().toString());
-		Message msg = qs.pull();
-		qs.delete("INVALID_RECEIPT_HANDLE" + (msg != null ? msg.getBody() : "!@#_garbage_#$%"));
-	}
+    @Test
+    public void testDeleteLoop() throws InterruptedException {
+        InMemoryQueueService qs = new InMemoryQueueService(5);
 
-	@Test
-	public void testPushNull() {
-		QueueService qs = new InMemoryQueueService(3_000);
+        for (int i = 0; i < 1000; ++i) {
+            qs.push(Integer.toString(i));
+        }
+        for (int i = 0; i < 1000; ++i) {
+            Message message = qs.pull();
+            assertTrue(qs.delete(message.getReceiptHandle()));
+        }
 
-		qs.push(null);
-	}
+        assertEquals(0, qs.getVisibleMessagesCount());
+        assertEquals(0, qs.getInvisibleMessagesCount());
 
-	@Test
-	public void testPushAndDeleteRandomObjects() {
-		QueueService qs = new InMemoryQueueService(3_000);
+        Thread.sleep(20);
 
-		qs.push(new Object().toString());
-		qs.delete(new Object().toString());
-	}
+        assertNull(qs.pull());
+    }
 
-	@Test
-	public void testDeleteNull() {
-		QueueService qs = new InMemoryQueueService(3_000);
+    @Test
+    public void testPushAndPullLoop() {
+        QueueService qs = new InMemoryQueueService(3_000);
 
-		qs.delete(null);
-	}
+        for (int i = 0; i < 1000; ++i) {
+            qs.push(new Object().toString());
+            qs.pull();
+        }
+    }
 
-	@Test(expected = IllegalArgumentException.class)
-	public void testWrongConstructorCall0() {
-		QueueService qs = new InMemoryQueueService(-100);
-	}
+    @Test
+    public void testPushAndPullAndDeleteLoop() throws InterruptedException {
+        InMemoryQueueService qs = new InMemoryQueueService(10);
 
-	@Test(expected = IllegalArgumentException.class)
-	public void testWrongConstructorCall1() {
-		QueueService qs = new InMemoryQueueService(0);
-	}
+        for (int i = 0; i < 1000; ++i) {
+            qs.push(new Object().toString());
+            Message msg = qs.pull();
+            boolean deleted = qs.delete(msg.getReceiptHandle());
+            assertTrue(deleted);
+        }
 
-	@Test
-	public void testMultipleProducersConsumers() {
+        assertEquals(0, qs.getVisibleMessagesCount());
+        assertEquals(0, qs.getInvisibleMessagesCount());
 
-		QueueService qs = new InMemoryQueueService(100);
+        Thread.sleep(30);
 
-		new Thread(() -> {
-			for (int i = 0; i < 10; i += 2) {
-				qs.push("" + i);
-			}
-		}).start();
+        assertNull(qs.pull());
+    }
 
-		new Thread(() -> {
-			for (int i = 1; i < 10; i += 2) {
-				qs.push("" + i);
-			}
-		}).start();
+    @Test
+    public void testWrongReceiptHandle() {
+        QueueService qs = new InMemoryQueueService(3_000);
 
-		new Thread(() -> {
-			for (int i = 0; i < 50; ++i) {
-				Message pull = qs.pull();
-				if (pull != null) {
-					String body = pull.getBody();
-					int number = Integer.parseInt(body);
-					Assert.assertTrue(number >= 0 && number < 10);
-					qs.delete(pull.getReceiptHandle());
-				}
-			}
-		}).start();
+        qs.push(new Object().toString());
+        Message msg = qs.pull();
+        boolean result = qs.delete("INVALID_RECEIPT_HANDLE" + (msg != null ? msg.getBody() : "!@#_garbage_#$%"));
+        assertFalse(result);
+    }
 
-		new Thread(() -> {
-			for (int i = 0; i < 50; ++i) {
-				Message pull = qs.pull();
-				if (pull != null) {
-					String body = pull.getBody();
-					int number = Integer.parseInt(body);
-					Assert.assertTrue(number >= 0 && number < 10);
-					qs.delete(pull.getReceiptHandle());
-				}
-			}
-		}).start();
-	}
+    @Test
+    public void testPushNull() {
+        QueueService qs = new InMemoryQueueService(3_000);
+
+        qs.push(null);
+    }
+
+    @Test
+    public void testDeleteNull() {
+        QueueService qs = new InMemoryQueueService(3_000);
+
+        qs.delete(null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testWrongConstructorCall0() {
+        QueueService qs = new InMemoryQueueService(-100);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testWrongConstructorCall1() {
+        QueueService qs = new InMemoryQueueService(0);
+    }
+
+    @Test
+    public void testMultipleProducersConsumers() throws InterruptedException {
+        InMemoryQueueService qs = new InMemoryQueueService(100);
+
+        final int received[] = new int[10];
+
+        final Thread senderThread1 = new Thread(() -> {
+            for (int i = 0; i < 10; i += 2) {
+                qs.push("" + i);
+            }
+        });
+
+        final Thread senderThread2 = new Thread(() -> {
+            for (int i = 1; i < 10; i += 2) {
+                qs.push("" + i);
+            }
+        });
+
+        Thread consumerThread1 = new Thread(() -> {
+            int i = 0;
+            while (i < 50 || senderThread1.isAlive() || senderThread2.isAlive()) {
+                Message pull = qs.pull();
+                if (pull != null) {
+                    String body = pull.getBody();
+                    int number = Integer.parseInt(body);
+                    assertTrue(number >= 0 && number < 10);
+                    assertTrue(qs.delete(pull.getReceiptHandle()));
+                    received[number] = 1;
+                }
+                ++i;
+            }
+        });
+
+
+
+        Thread consumerThread2 = new Thread(() -> {
+            int i = 0;
+            while (i < 50 || senderThread1.isAlive() || senderThread2.isAlive()) {
+                Message pull = qs.pull();
+                if (pull != null) {
+                    String body = pull.getBody();
+                    int number = Integer.parseInt(body);
+                    assertTrue(number >= 0 && number < 10);
+                    assertTrue(qs.delete(pull.getReceiptHandle()));
+                    received[number] = 2;
+                }
+                ++i;
+            }
+        });
+
+        senderThread1.start();
+        senderThread2.start();
+        consumerThread1.start();
+        consumerThread2.start();
+
+        consumerThread1.join();
+        consumerThread2.join();
+
+        for (int i=0; i < 10; i++){
+            assertTrue(received[i] > 0);
+        }
+
+        assertEquals(0, qs.getInvisibleMessagesCount());
+        assertEquals(0, qs.getVisibleMessagesCount());
+
+        //fail(Arrays.toString(received));
+    }
 }

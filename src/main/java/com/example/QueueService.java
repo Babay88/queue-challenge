@@ -6,7 +6,7 @@ public interface QueueService {
 
 	Message pull();
 
-	void delete(String receiptHandle);
+	boolean delete(String receiptHandle);
 }
 
 class Message {
