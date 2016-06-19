@@ -4,7 +4,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
@@ -15,9 +14,11 @@ public class InMemoryQueueService implements QueueService {
 
 	private final long visibilityTimeoutMillis;
 
-	private Queue<String> q = new LinkedList<>();
-	private Map<String, TimerTask> invisibleMessageReactivationTasks = new HashMap<>();
-	private Timer timer = new Timer();
+	private final Deque<String> q = new LinkedList<>();
+	private final Map<String, TimerTask> invisibleMessageReactivationTasks = new HashMap<>();
+	private final Timer timer = new Timer();
+
+	private Object lock = new Object();
 
 	public InMemoryQueueService() {
 		this(DEFAULT_VISIBILITY_TIMEOUT);
@@ -32,33 +33,37 @@ public class InMemoryQueueService implements QueueService {
 
 	@Override
 	public void push(String messageBody) {
-		q.add(messageBody);
+		synchronized (lock) {
+			q.addLast(messageBody);
+		}
 	}
 
 	@Override
 	public Message pull() {
-		String messageBody = q.poll();
-		if (messageBody == null) {
-			return null;
+		synchronized (lock) {
+			String messageBody = q.pollFirst();
+			if (messageBody == null) {
+				return null;
+			}
+
+			String receiptHandle = UUID.randomUUID().toString();
+			Message message = new Message(messageBody, receiptHandle);
+
+			ReactivateMessageTask task = new ReactivateMessageTask(message);
+			timer.schedule(task, visibilityTimeoutMillis);
+			invisibleMessageReactivationTasks.put(receiptHandle, task);
+
+			return message;
 		}
-
-		String receiptHandle = UUID.randomUUID().toString();
-
-		Message message = new Message(messageBody, receiptHandle);
-
-		ReactivateMessageTask task = new ReactivateMessageTask(message);
-
-		timer.schedule(task, visibilityTimeoutMillis);
-		invisibleMessageReactivationTasks.put(receiptHandle, task);
-
-		return message;
 	}
 
 	@Override
 	public void delete(String receiptHandle) {
-		if (invisibleMessageReactivationTasks.containsKey(receiptHandle)) {
-			invisibleMessageReactivationTasks.get(receiptHandle).cancel();
-			invisibleMessageReactivationTasks.remove(receiptHandle);
+		synchronized (lock) {
+			if (invisibleMessageReactivationTasks.containsKey(receiptHandle)) {
+				invisibleMessageReactivationTasks.get(receiptHandle).cancel();
+				invisibleMessageReactivationTasks.remove(receiptHandle);
+			}
 		}
 	}
 
@@ -72,9 +77,10 @@ public class InMemoryQueueService implements QueueService {
 
 		@Override
 		public void run() {
-			Deque<String> d = (Deque<String>) q;
-			d.addFirst(msg.getBody());
-			invisibleMessageReactivationTasks.remove(msg.getReceiptHandle());
+			synchronized (lock) {
+				q.addFirst(msg.getBody());
+				invisibleMessageReactivationTasks.remove(msg.getReceiptHandle());
+			}
 		}
 	}
 }
